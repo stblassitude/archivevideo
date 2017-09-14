@@ -173,7 +173,8 @@ def transcode(src):
 		try:
 			subprocess.check_call(args)
 			dup = os.path.join(os.path.dirname(tgt), "Duplicates")
-			os.makedirs(dup)
+			if not os.path.isdir(dup):
+				os.makedirs(dup)
 			os.rename(src, os.path.join(dup, os.path.basename(src)))
 		except Exception as e:
 			os.remove(tgt)
