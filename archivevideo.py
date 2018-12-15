@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import getopt
 import json
@@ -136,15 +137,15 @@ def ffmpegArgs(meta, tgt):
 		if len(x265params) > 0:
 			args.extend(["-x265-params", string.join(x265params, ",")])
 	else:
-		args.extend(["-vcodec", "libx264", "-tune", "film", "-profile", "main"])
+		args.extend(["-vcodec", "libx264", "-tune", "film", "-profile:v", "main"])
 		if meta.video.height < 720:
 			args.extend(["-b:v", "1000k"])
 
 	if options.downmix:
-		args.extend(["-c:a", "libfdk_aac", "-ac", "2", "-ab", "96k"])
+		args.extend(["-c:a", "aac", "-ac", "2", "-ab", "96k"])
 	else:
 		#args.extend(["-c:a", "copy"])
-		args.extend(["-c:a", "libfdk_aac", "-vbr", "2"])
+		args.extend(["-c:a", "aac", "-vbr", "2"])
 
 	args.append(tgt)
 	
@@ -168,16 +169,20 @@ def transcode(src):
 
 	args = ffmpegArgs(meta, tgt)
 
-	print "\t{}".format(quoteArgs(args))
+	print u'\t{}'.format(quoteArgs(args))
 	if not options.dont:
 		try:
 			subprocess.check_call(args)
+			shutil.copystat(src, tgt)
 			dup = os.path.join(os.path.dirname(tgt), "Duplicates")
 			if not os.path.isdir(dup):
 				os.makedirs(dup)
 			os.rename(src, os.path.join(dup, os.path.basename(src)))
 		except Exception as e:
-			os.remove(tgt)
+			try:
+				os.remove(tgt)
+			except Exception:
+				pass
 			print "error\t{}\t{}".format(src, e)
 
 
@@ -193,7 +198,7 @@ def main(argv=None):
 	options = Options()
 	cmd = transcode
 	if argv is None:
-		argv = sys.argv
+		argv = map(lambda s: s.decode('UTF-8'), sys.argv)
    	try:
    		flags = "24fhinv"
    		try:
@@ -222,7 +227,7 @@ def main(argv=None):
 			if o == "-2":
 				options.downmix = True
 			if o == "-4":
-				options.x265 = True
+				options.x265 = False
 			if o == "-f":
 				options.overwrite = True
 			if o == "-i":
