@@ -4,6 +4,7 @@
 import getopt
 import json
 import os
+import os.path
 import re
 import shutil
 import string
@@ -15,6 +16,7 @@ from pipes import quote
 from pprint import pprint
 from string import Template
 
+from setproctitle import setproctitle
 
 class Options:
 	def __init__(self):
@@ -25,7 +27,7 @@ class Options:
 		self.x265 = True
 
 
-def quoteArgs(args):
+def quote_args(args):
 	"""
 	Given a list of arguments suitable for subprocess.Popen(), returns
 	a string that should be safe to use with os.system().
@@ -81,7 +83,7 @@ class MediaMetadata:
 				self.audio.channels = stream['channels']
 
 
-def getInfo(f):
+def get_info(f, index, count):
 	global options
 	info = MediaMetadata(f) 
 	if options.verbose:
@@ -90,14 +92,14 @@ def getInfo(f):
 	print "info\t{info.filename}\t{info.video.codec}/{info.video.spec}\t{info.audio.codec},{info.audio.channels}".format(info=info)
 
 
-def targetFilename(file):
+def target_filename(file):
 	"""
 	Compute the target filename based on the source filename.
 	"""
 	return re.sub(r'\.[a-zA-Z0-9]+$', '.mkv', file)
 
 
-def ffmpegArgs(meta, tgt):
+def ffmpeg_args(meta, tgt):
 	global options
 	
 	args = [ "ffmpeg", "-i", meta.filename]
@@ -152,11 +154,11 @@ def ffmpegArgs(meta, tgt):
 	return args
 
 
-def transcode(src):
+def transcode(src, index=0, count=0):
 	global options
 	
 	meta = MediaMetadata(src)
-	tgt = targetFilename(src)
+	tgt = target_filename(src)
 	if os.path.abspath(src) == os.path.abspath(tgt):
 		print "error\t{}\ttarget is the same as source".format(src)
 		return
@@ -167,9 +169,12 @@ def transcode(src):
 			print "error\t{}\talready exists".format(tgt)
 			return
 
-	args = ffmpegArgs(meta, tgt)
+	args = ffmpeg_args(meta, tgt)
 
-	print u'\t{}'.format(quoteArgs(args))
+	progress = ''
+	if count > 0:
+		progress = '[{}/{}]'.format(index, count)
+	print u'{}\t{}'.format(progress, quote_args(args))
 	if not options.dont:
 		try:
 			subprocess.check_call(args)
@@ -199,6 +204,7 @@ def main(argv=None):
 	cmd = transcode
 	if argv is None:
 		argv = map(lambda s: s.decode('UTF-8'), sys.argv)
+	me = os.path.basename(argv[0])
    	try:
    		flags = "24fhinv"
    		try:
@@ -231,15 +237,16 @@ def main(argv=None):
 			if o == "-f":
 				options.overwrite = True
 			if o == "-i":
-				cmd = getInfo
+				cmd = get_info
 			if o == "-n":
 				options.dont = True
 			if o == "-v":
 				options.verbose = True
 		if len(args) == 0:
 			raise Usage("At least one file needs to be specified")
-		for a in args:
-			cmd(a)
+		for i, a in enumerate(args, start=1):
+			setproctitle('{}: [{}/{}] {}'.format(me, i, len(args), a))
+			cmd(a, i, len(args))
 		return 0
 	except Usage, err:
 		print >>sys.stderr, err.msg
